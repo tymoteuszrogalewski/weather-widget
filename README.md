@@ -4,19 +4,19 @@
 
 A small, dark **weather widget for today and tomorrow**, made to be read **from a distance** — e.g. on a tablet on the wall. **One PHP file**, no database, no JavaScript, no API key. Data from [Open-Meteo](https://open-meteo.com).
 
-![Weather widget](docs/weather-widget.png)
+![Weather widget](docs/weather-48h.png)
 
 ## What you see
 
 | Element | Meaning |
 |---|---|
 | **Top bar** | Cloud cover — light blue = sun, dark grey = clouds |
-| **Red line** | Temperature. Numbers on the curve: at sunrise, the daily maximum (bigger) and at sunset |
+| **Red line** | Temperature. Numbers on the curve: at sunrise, the daytime maximum (bigger) and at sunset |
 | **Green bars** | Precipitation in mm/h. The snow part of a bar is blue, ❄ marks the biggest snowfall of the day |
 | **Bottom bar** | Wind speed, coloured like a classic meteogram: light blue = calm, dark blue, green, yellow, red = storm |
 | **Arrows** | Where the wind blows to, every 2 hours |
 | **Blue vertical line** | Now |
-| **Darker background** | Night |
+| **Darker background** | Night — from the real sunset to the real sunrise |
 
 The chart always starts at **today's midnight** — it does not move with the hour, so you always see the whole day.
 

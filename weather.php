@@ -12,7 +12,7 @@
  * The chart is made to be read FROM A DISTANCE (e.g. a tablet on the wall). Every piece of
  * information has its own visual channel, so they do not drown each other out:
  *   top bar    — cloud cover (light blue = sun, dark grey = clouds)
- *   red line   — temperature, with sunrise / daily max / sunset values on the curve
+ *   red line   — temperature, with sunrise / daytime max / sunset values on the curve
  *   green bars — precipitation mm/h, from the bottom; the snow part of a bar is blue, ❄ over
  *                the biggest snowfall of the day
  *   bottom bar — wind speed, coloured like a meteogram (light blue calm ... red storm)
@@ -188,8 +188,13 @@ ob_start();
 
   <rect x="<?= $L ?>" y="<?= $Y_CLOUD ?>" width="<?= $W - $L - $R ?>" height="<?= $H_CLOUD ?>" fill="url(#wxCloud)"/>
 
-  <?php // NIGHT (20-6) slightly darker
-  foreach ($rows as $i => $x): if ($hourOf($x) >= 6 && $hourOf($x) < 20) continue; ?>
+  <?php // NIGHT slightly darker — from the real sunset to the real sunrise of each day.
+  // The sunrise and sunset hours stay light, it gets dark from the next hour after sunset.
+  $sun = [];
+  foreach ($days as $dd) $sun[$dd['d']] = [$dd['sunrise'], $dd['sunset']];
+  foreach ($rows as $i => $x):
+      [$sr, $ss] = $sun[date('Y-m-d', $x['ts'])] ?? [6, 19];
+      if ($hourOf($x) >= $sr && $hourOf($x) <= $ss) continue; ?>
     <rect x="<?= round($xOf($i), 1) ?>" y="<?= $Y_PLOT ?>" width="<?= ceil($colW) + 1 ?>" height="<?= $H_PLOT ?>" fill="#3a3a41"/>
   <?php endforeach; ?>
 
@@ -251,6 +256,9 @@ ob_start();
       foreach ($rows as $i => $x) {
           if (date('Y-m-d', $x['ts']) !== $dd['d']) continue;
           if ($hourOf($x) === $dd['sunrise'] || $hourOf($x) === $dd['sunset']) $marks[] = [$i, $x['temp'], false];
+          // The max only from DAYTIME hours — over the whole day it sometimes falls at midnight
+          // (warm evening, then cooling), and that is not "how warm will it be during the day".
+          if ($hourOf($x) < $dd['sunrise'] || $hourOf($x) > $dd['sunset']) continue;
           if ($x['temp'] > $bestT) { $bestT = $x['temp']; $best = $i; }
       }
       if ($best !== null) $marks[] = [$best, $bestT, true];
