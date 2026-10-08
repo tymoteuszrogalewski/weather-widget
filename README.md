@@ -4,7 +4,7 @@
 
 A small, dark **weather widget for today and tomorrow**, made to be read **from a distance** — e.g. on a tablet on the wall. **One PHP file**, no database, no JavaScript, no API key. Data from [Open-Meteo](https://open-meteo.com).
 
-![Weather widget](docs/weather-48h-v2.png)
+![Weather widget](docs/weather-48h-v3.png)
 
 ## What you see
 
