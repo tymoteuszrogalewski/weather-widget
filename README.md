@@ -4,7 +4,7 @@
 
 A small, dark **weather widget for today and tomorrow**, made to be read **from a distance** — e.g. on a tablet on the wall. **One PHP file**, no database, no JavaScript, no API key. Data from [Open-Meteo](https://open-meteo.com).
 
-![Weather widget](docs/weather-48h.png)
+![Weather widget](docs/weather-48h-v2.png)
 
 ## What you see
 
@@ -16,7 +16,7 @@ A small, dark **weather widget for today and tomorrow**, made to be read **from 
 | **Bottom bar** | Wind speed, coloured like a classic meteogram: light blue = calm, dark blue, green, yellow, red = storm |
 | **Arrows** | Where the wind blows to, every 2 hours |
 | **Blue vertical line** | Now |
-| **Darker background** | Night — from the real sunset to the real sunrise |
+| **Darker background** | Night — from the exact sunset to the exact sunrise; the sunrise and sunset dots sit right on that edge |
 
 The chart always starts at **today's midnight** — it does not move with the hour, so you always see the whole day.
 

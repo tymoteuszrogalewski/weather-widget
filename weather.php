@@ -106,8 +106,8 @@ $days = [];
 foreach ($d['daily']['time'] as $i => $day) {
     $days[] = [
         'd'       => $day,
-        'sunrise' => (int)date('G', strtotime($d['daily']['sunrise_' . $BASE_MODEL][$i] ?? $day . 'T06:00')),
-        'sunset'  => (int)date('G', strtotime($d['daily']['sunset_'  . $BASE_MODEL][$i] ?? $day . 'T18:00')),
+        'sunrise' => strtotime($d['daily']['sunrise_' . $BASE_MODEL][$i] ?? $day . 'T06:00'),   // timestamps
+        'sunset'  => strtotime($d['daily']['sunset_'  . $BASE_MODEL][$i] ?? $day . 'T18:00'),
     ];
 }
 
@@ -188,15 +188,18 @@ ob_start();
 
   <rect x="<?= $L ?>" y="<?= $Y_CLOUD ?>" width="<?= $W - $L - $R ?>" height="<?= $H_CLOUD ?>" fill="url(#wxCloud)"/>
 
-  <?php // NIGHT slightly darker — from the real sunset to the real sunrise of each day.
-  // The sunrise and sunset hours stay light, it gets dark from the next hour after sunset.
-  $sun = [];
-  foreach ($days as $dd) $sun[$dd['d']] = [$dd['sunrise'], $dd['sunset']];
-  foreach ($rows as $i => $x):
-      [$sr, $ss] = $sun[date('Y-m-d', $x['ts'])] ?? [6, 19];
-      if ($hourOf($x) >= $sr && $hourOf($x) <= $ss) continue; ?>
-    <rect x="<?= round($xOf($i), 1) ?>" y="<?= $Y_PLOT ?>" width="<?= ceil($colW) + 1 ?>" height="<?= $H_PLOT ?>" fill="#3a3a41"/>
-  <?php endforeach; ?>
+  <?php // NIGHT slightly darker — from the exact sunset to the exact sunrise of each day.
+  // $xAt = position of any moment on the X axis.
+  $t0  = $rows[0]['ts'];
+  $xAt = fn($ts) => $L + ($ts - $t0) / 3600 * $colW;
+  $clipX = fn($x) => max($L, min($W - $R, $x));
+  foreach ($days as $dd):
+      $d0 = strtotime($dd['d'] . ' 00:00:00');
+      foreach ([[$d0, $dd['sunrise']], [$dd['sunset'], $d0 + 86400]] as [$a, $b]):
+          $x1 = $clipX($xAt($a)); $x2 = $clipX($xAt($b));
+          if ($x2 - $x1 < 0.5) continue; ?>
+    <rect x="<?= round($x1, 1) ?>" y="<?= $Y_PLOT ?>" width="<?= round($x2 - $x1, 1) ?>" height="<?= $H_PLOT ?>" fill="#3a3a41"/>
+  <?php endforeach; endforeach; ?>
 
   <?php // horizontal grid, 4-6 lines
   $span = $tMax - $tMin;
@@ -248,32 +251,47 @@ ob_start();
   <polyline points="<?= implode(' ', $pts) ?>" fill="none" stroke="#ff5f45" stroke-width="2.6"
             stroke-linecap="round" stroke-linejoin="round"/>
 
-  <?php // LABELS ON THE CURVE: sunrise, daily max (bigger) and sunset of each day. Three numbers say
+  <?php // LABELS ON THE CURVE: sunrise, daytime max (bigger) and sunset of each day. Three numbers say
   // more than min/max — is it cold in the morning, does the evening stay warm.
-  $marks = [];
+  // Sunrise and sunset sit at their exact minute, right on the day/night edge; the temperature
+  // there is read from the line (the line points are in the middle of each hour).
+  $tempAt = function ($ts) use ($rows, $t0) {
+      $f = ($ts - $t0) / 3600 - 0.5;
+      $i = max(0, min(count($rows) - 2, (int)floor($f)));
+      $k = max(0.0, min(1.0, $f - $i));
+      return $rows[$i]['temp'] + ($rows[$i + 1]['temp'] - $rows[$i]['temp']) * $k;
+  };
+  $marks = [];   // [x, temperature, is max]
   foreach ($days as $dd) {
+      $marks[] = [$xAt($dd['sunrise']), $tempAt($dd['sunrise']), false];
+      $marks[] = [$xAt($dd['sunset']),  $tempAt($dd['sunset']),  false];
+      // The max only from DAYTIME hours — over the whole day it sometimes falls at midnight
+      // (warm evening, then cooling), and that is not "how warm will it be during the day".
       $best = null; $bestT = -99;
       foreach ($rows as $i => $x) {
-          if (date('Y-m-d', $x['ts']) !== $dd['d']) continue;
-          if ($hourOf($x) === $dd['sunrise'] || $hourOf($x) === $dd['sunset']) $marks[] = [$i, $x['temp'], false];
-          // The max only from DAYTIME hours — over the whole day it sometimes falls at midnight
-          // (warm evening, then cooling), and that is not "how warm will it be during the day".
-          if ($hourOf($x) < $dd['sunrise'] || $hourOf($x) > $dd['sunset']) continue;
+          $mid = $x['ts'] + 1800;
+          if ($mid < $dd['sunrise'] || $mid > $dd['sunset']) continue;
           if ($x['temp'] > $bestT) { $bestT = $x['temp']; $best = $i; }
       }
-      if ($best !== null) $marks[] = [$best, $bestT, true];
+      if ($best !== null) $marks[] = [$xOf($best) + $colW / 2, $bestT, true];
   }
-  // A sunrise / sunset label closer than 2 hours to a daily max would overlap it — the max wins.
-  $maxIdx = array_map(fn($m) => $m[0], array_filter($marks, fn($m) => $m[2]));
-  $marks = array_filter($marks, function ($m) use ($maxIdx) {
+  // A sunrise / sunset label close to a daily max would overlap it: within 2 hours it moves to the
+  // OUTSIDE (sunset to the right of its dot, sunrise to the left); if the dots almost touch, only
+  // the max stays.
+  $maxX = array_map(fn($m) => $m[0], array_filter($marks, fn($m) => $m[2]));
+  $marks = array_filter($marks, function ($m) use ($maxX, $colW, $L, $W, $R) {
+      if ($m[0] < $L || $m[0] > $W - $R) return false;
       if ($m[2]) return true;
-      foreach ($maxIdx as $mi) if (abs($m[0] - $mi) < 2) return false;
+      foreach ($maxX as $mx) if (abs($m[0] - $mx) < 0.8 * $colW) return false;
       return true;
   });
-  foreach ($marks as [$i, $t, $isMax]):
-      $cx = $xOf($i) + $colW / 2;
+  foreach ($marks as [$cx, $t, $isMax]):
       $anchor = $cx < $L + 26 ? 'start' : ($cx > $W - $R - 26 ? 'end' : 'middle');
-      $tx = $anchor === 'start' ? $L + 2 : ($anchor === 'end' ? $W - $R - 2 : $cx); ?>
+      $tx = $anchor === 'start' ? $L + 2 : ($anchor === 'end' ? $W - $R - 2 : $cx);
+      if (!$isMax) foreach ($maxX as $mx) {
+          if (abs($cx - $mx) >= 2 * $colW) continue;
+          if ($cx > $mx) { $anchor = 'start'; $tx = $cx + 3; } else { $anchor = 'end'; $tx = $cx - 3; }
+      } ?>
     <circle cx="<?= round($cx, 1) ?>" cy="<?= round($yOf($t), 1) ?>" r="2.6" fill="#ff5f45"/>
     <text x="<?= round($tx, 1) ?>" y="<?= round($yOf($t) - 7, 1) ?>" text-anchor="<?= $anchor ?>" fill="#e8e8e8"
           style="font:700 <?= $isMax ? 22 : 17 ?>px sans-serif"><?= round($t) ?>°</text>
